@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>VolleyScore — Marcador y Torneo</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<style>
+:root{
+  --bg:#14161B; --surface:#1D2026; --surface2:#262A32; --line:#33383F;
+  --ink:#F2F3F5; --ink-dim:#9AA1AB;
+  --amber:#FFB627; --teamA:#3FA7D6; --teamB:#EE6352; --win:#43AA8B;
+  --danger:#E05263;
+  --disp:'Barlow Condensed', system-ui, sans-serif;
+  --body:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);overscroll-behavior:none;
+  padding-top:env(safe-area-inset-top)}
+#app{display:flex;flex-direction:column;height:100dvh}
+main{flex:1;overflow-y:auto;padding:14px 14px 90px;-webkit-overflow-scrolling:touch}
+
+/* ---------- Nav ---------- */
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:rgba(20,22,27,.92);
+  backdrop-filter:blur(12px);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);z-index:50}
+nav button{flex:1;background:none;border:none;color:var(--ink-dim);font-family:var(--disp);
+  font-size:15px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  padding:12px 4px 10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button .ic{font-size:20px;line-height:1}
+nav button.on{color:var(--amber)}
+
+/* ---------- Headers ---------- */
+h1{font-family:var(--disp);font-size:26px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+h2{font-family:var(--disp);font-size:19px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-dim);margin:20px 0 10px}
+.sub{color:var(--ink-dim);font-size:13px;margin-top:2px}
+
+/* ---------- Cards / lists ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:10px}
+.grow{flex:1}
+.pill{font-family:var(--disp);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--ink-dim)}
+.pill.live{color:var(--amber);border-color:var(--amber)}
+.pill.done{color:var(--win);border-color:var(--win)}
+
+/* ---------- Buttons / inputs ---------- */
+.btn{font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:.06em;text-transform:uppercase;
+  background:var(--surface2);color:var(--ink);border:1px solid var(--line);border-radius:12px;
+  padding:12px 16px;cursor:pointer;transition:transform .06s}
+.btn:active{transform:scale(.96)}
+.btn.primary{background:var(--amber);color:#14161B;border-color:var(--amber)}
+.btn.ghost{background:none}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.btn.sm{font-size:14px;padding:8px 12px;border-radius:10px}
+.btn.block{width:100%;display:block;text-align:center;margin-top:10px}
+input[type=text],select{background:var(--surface2);border:1px solid var(--line);color:var(--ink);
+  border-radius:10px;padding:11px 12px;font-size:16px;width:100%;outline:none}
+input:focus,select:focus{border-color:var(--amber)}
+label.fld{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);margin:12px 0 5px;font-family:var(--disp);font-weight:600}
+.seg{display:flex;background:var(--surface2);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;background:none;border:none;color:var(--ink-dim);font-family:var(--disp);font-weight:700;
+  font-size:15px;letter-spacing:.04em;padding:10px;cursor:pointer}
+.seg button.on{background:var(--amber);color:#14161B}
+
+/* ---------- SCOREBOARD ---------- */
+.board{display:flex;flex-direction:column;gap:10px}
+.board-head{display:flex;justify-content:space-between;align-items:baseline}
+.setdots{display:flex;gap:6px;justify-content:center;margin:2px 0}
+.dot{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--line)}
+.dot.a{background:var(--teamA);border-color:var(--teamA)}
+.dot.b{background:var(--teamB);border-color:var(--teamB)}
+.courts{display:flex;gap:10px}
+.half{flex:1;border-radius:18px;padding:16px 8px 20px;text-align:center;cursor:pointer;
+  position:relative;user-select:none;-webkit-user-select:none;border:1px solid var(--line);
+  background:linear-gradient(180deg,var(--surface) 0%,var(--surface2) 100%);transition:transform .05s}
+.half:active{transform:scale(.97)}
+.half.A{border-top:4px solid var(--teamA)}
+.half.B{border-top:4px solid var(--teamB)}
+.half .tname{font-family:var(--disp);font-weight:700;font-size:18px;letter-spacing:.04em;
+  text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+.half.A .tname{color:var(--teamA)} .half.B .tname{color:var(--teamB)}
+.half .num{font-family:var(--disp);font-weight:800;font-size:clamp(88px,30vw,150px);line-height:1;
+  color:var(--amber);font-variant-numeric:tabular-nums;
+  text-shadow:0 0 26px rgba(255,182,39,.28)}
+.half .setsw{font-family:var(--disp);font-size:15px;font-weight:600;color:var(--ink-dim);letter-spacing:.05em}
+.half .setsw b{color:var(--ink);font-size:18px}
+.serve{position:absolute;top:10px;right:10px;font-size:20px;opacity:0;transition:opacity .15s}
+.half.serving .serve{opacity:1}
+.tapHint{text-align:center;color:var(--ink-dim);font-size:12px;letter-spacing:.05em}
+.board-actions{display:flex;gap:8px}
+.board-actions .btn{flex:1}
+.sethist{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.sethist span{font-family:var(--disp);font-weight:600;font-size:14px;color:var(--ink-dim);
+  border:1px solid var(--line);border-radius:8px;padding:3px 8px}
+.matchpoint{text-align:center;font-family:var(--disp);font-weight:800;font-size:17px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--amber);
+  animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.matchpoint{animation:none}}
+
+/* ---------- Fixture ---------- */
+.match .vs{font-family:var(--disp);font-weight:800;font-size:17px;display:flex;align-items:center;gap:8px}
+.match .score{font-family:var(--disp);font-weight:800;font-size:22px;color:var(--amber);font-variant-numeric:tabular-nums;min-width:52px;text-align:center}
+.match .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.match .nm.winner{color:var(--win)}
+.match .nm.right{text-align:right}
+.match .detail{color:var(--ink-dim);font-size:12px;margin-top:6px;text-align:center;font-variant-numeric:tabular-nums}
+.sched{text-align:center;color:var(--ink-dim);font-size:12.5px;font-variant-numeric:tabular-nums;margin-bottom:8px;letter-spacing:.03em}
+.pill.btnp{background:none;cursor:pointer;color:var(--ink-dim)}
+.roundlbl{font-family:var(--disp);font-weight:700;font-size:15px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--amber);margin:16px 0 8px;border-left:3px solid var(--amber);padding-left:8px}
+
+/* ---------- Standings ---------- */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-family:var(--disp);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-dim);text-align:center;padding:8px 4px;border-bottom:1px solid var(--line)}
+th:nth-child(2){text-align:left}
+td{padding:10px 4px;text-align:center;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+td.tn{text-align:left;font-weight:600;max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+td.pos{font-family:var(--disp);font-weight:800;color:var(--ink-dim)}
+tr.q td.pos{color:var(--amber)}
+td.pts{font-family:var(--disp);font-weight:800;font-size:16px;color:var(--amber)}
+
+/* ---------- Teams ---------- */
+.teamrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.teamrow:last-child{border:none}
+.chip{width:12px;height:26px;border-radius:4px;flex:none}
+.del{background:none;border:none;color:var(--danger);font-size:18px;cursor:pointer;padding:4px 8px}
+
+.empty{text-align:center;color:var(--ink-dim);padding:36px 16px;font-size:14px}
+.empty .big{font-size:36px;margin-bottom:8px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;background:var(--surface2);
+  border:1px solid var(--amber);color:var(--ink);padding:10px 18px;border-radius:99px;
+  font-size:14px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="app">
+  <main id="main"></main>
+  <nav id="nav">
+    <button data-tab="board"><span class="ic">🏐</span>Marcador</button>
+    <button data-tab="fixture"><span class="ic">📅</span>Fixture</button>
+    <button data-tab="table"><span class="ic">🏆</span>Tabla</button>
+    <button data-tab="setup"><span class="ic">⚙️</span>Torneo</button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+<input type="file" id="importFile" accept=".json,application/json" class="hidden">
+
+<script>
+'use strict';
+/* ================= FIREBASE / TRANSMISIÓN EN VIVO ================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyDF2YOoG6WW5y_K2zzFWCE7ES1gSIrPcFY",
+  authDomain: "volleyscore-a9791.firebaseapp.com",
+  databaseURL: "https://volleyscore-a9791-default-rtdb.firebaseio.com",
+  projectId: "volleyscore-a9791",
+  storageBucket: "volleyscore-a9791.firebasestorage.app",
+  messagingSenderId: "153085028292",
+  appId: "1:153085028292:web:0a54f1a8ac2fe5f2246691"
+};
+let db = null, fbUser = null, viewerBooted = false;
+try{ firebase.initializeApp(firebaseConfig); db = firebase.database(); }catch(e){}
+/* Modo espectador: la misma página con ?vivo en la URL (solo lectura, en tiempo real) */
+const VIEWER = new URLSearchParams(location.search).has('vivo');
+
+let pubT = null;
+function publish(){
+  if(VIEWER || !db || !S.transmitir) return;
+  clearTimeout(pubT);
+  pubT = setTimeout(()=> db.ref('torneos/main').set(JSON.parse(JSON.stringify(S))).catch(()=>{}), 120);
+}
+async function toggleTransmitir(){
+  if(!db){ toast('No hay conexión con Firebase'); return; }
+  S.transmitir = !S.transmitir;
+  if(S.transmitir){
+    try{ const c = await firebase.auth().signInAnonymously(); fbUser = c.user; }catch(e){ /* auth anónima no habilitada aún: en modo prueba igual funciona */ }
+    db.ref('torneos/main').set(JSON.parse(JSON.stringify(S)))
+      .then(()=>toast('📡 Transmisión activada'))
+      .catch(()=>{ toast('Firebase rechazó la escritura — revisa las reglas'); });
+  } else toast('Transmisión desactivada');
+  save(); render();
+}
+function viewerLink(){
+  if(location.protocol==='file:') return null;
+  return location.origin + location.pathname + '?vivo';
+}
+
+/* ================= ESTADO ================= */
+const DEFAULT = () => ({
+  config:{ nombre:'Mi Campeonato', formato:'rr', bestOf:3, ptsSet:25, ptsFinal:15 },
+  equipos:[], partidos:[], actual:null, generado:false, transmitir:false
+});
+let S = DEFAULT();
+let tab = 'setup';
+let undoStack = [];
+
+/* ---------- persistencia local ---------- */
+function save(){
+  if(VIEWER) return;
+  try{ localStorage.setItem('volleyscore', JSON.stringify(S)); }catch(e){}
+  publish();
+}
+function load(){
+  try{
+    const raw = localStorage.getItem('volleyscore');
+    if(raw){ S = JSON.parse(raw); if(S.generado) tab = S.actual ? 'board' : 'fixture'; }
+  }catch(e){}
+}
+
+/* ---------- export / import archivo ---------- */
+function exportJSON(){
+  const data = JSON.stringify(S, null, 2);
+  const name = (S.config.nombre||'torneo').replace(/[^\w\-áéíóúñ ]/gi,'').trim().replace(/\s+/g,'-') + '.json';
+  const file = new File([data], name, {type:'application/json'});
+  // iOS: hoja de compartir nativa → permite elegir dónde guardar (Archivos, iCloud, etc.)
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    navigator.share({files:[file], title:name}).catch(()=>downloadBlob(file, name));
+  } else {
+    downloadBlob(file, name);
+  }
+}
+function downloadBlob(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+}
+function importJSON(ev){
+  const f = ev.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const obj = JSON.parse(r.result);
+      if(!obj.config || !Array.isArray(obj.equipos)) throw 0;
+      S = obj; save(); undoStack = [];
+      toast('Torneo importado ✓');
+      tab = S.generado ? 'fixture' : 'setup'; render();
+    }catch(e){ toast('Archivo no válido'); }
+  };
+  r.readAsText(f); ev.target.value = '';
+}
+
+/* ================= LÓGICA TORNEO ================= */
+const uid = () => Math.random().toString(36).slice(2,9);
+const team = id => S.equipos.find(t=>t.id===id);
+const tname = id => id==='BYE' ? '— Libre —' : (team(id) ? team(id).nombre : '(por definir)');
+const COLORS = ['#3FA7D6','#EE6352','#43AA8B','#FFB627','#B388EB','#FF7FB2','#59C3C3','#F4A259','#8FB339','#E05263','#6C91C2','#D4A5A5'];
+
+function newMatch(a,b,ronda,etiqueta){
+  return { id:uid(), a, b, ronda, etiqueta, estado:'pendiente',
+    setsA:0, setsB:0, sets:[], curA:0, curB:0, saque:'a',
+    toA:0, toB:0, ganador:null, next:null, nextSlot:null,
+    dia:'', hora:'', cancha:'', playoff:false, aLabel:null, bLabel:null };
+}
+/* nombre a mostrar en un partido: equipo asignado, etiqueta de clasificado o "por definir" */
+const mname = (m,side) => m[side] ? tname(m[side]) : (m[side+'Label'] || '(por definir)');
+const sched = m => [m.dia, m.hora, m.cancha].filter(Boolean).join(' · ');
+
+/* Round robin — método del círculo */
+function genRoundRobin(){
+  let ids = S.equipos.map(t=>t.id);
+  if(ids.length % 2) ids.push('BYE');
+  const n = ids.length, rondas = n-1;
+  const fijos = ids[0]; let rot = ids.slice(1);
+  const partidos = [];
+  for(let r=0;r<rondas;r++){
+    const jornada = [fijos, ...rot];
+    for(let i=0;i<n/2;i++){
+      const a = jornada[i], b = jornada[n-1-i];
+      if(a!=='BYE' && b!=='BYE')
+        partidos.push(newMatch(a,b, r+1, 'Fecha '+(r+1)));
+    }
+    rot.unshift(rot.pop());
+  }
+  return partidos;
+}
+
+/* Eliminación directa con byes */
+function roundName(teamsIn){
+  if(teamsIn===2) return 'Final';
+  if(teamsIn===4) return 'Semifinales';
+  if(teamsIn===8) return 'Cuartos de final';
+  if(teamsIn===16) return 'Octavos de final';
+  return 'Ronda de '+teamsIn;
+}
+function genBracket(){
+  const ids = [...S.equipos.map(t=>t.id)];
+  // barajar para sorteo
+  for(let i=ids.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [ids[i],ids[j]]=[ids[j],ids[i]]; }
+  let size = 2; while(size < ids.length) size *= 2;
+  while(ids.length < size) ids.push('BYE');
+  const rounds = [];
+  let cur = [];
+  for(let i=0;i<size/2;i++) cur.push(newMatch(ids[i], ids[size-1-i], 1, roundName(size)));
+  rounds.push(cur);
+  let teamsIn = size/2, r = 2;
+  while(teamsIn >= 2){
+    const nxt = [];
+    for(let i=0;i<teamsIn/2;i++) nxt.push(newMatch(null,null,r,roundName(teamsIn)));
+    // enlazar
+    cur.forEach((m,i)=>{ m.next = nxt[Math.floor(i/2)].id; m.nextSlot = i%2===0?'a':'b'; });
+    rounds.push(nxt); cur = nxt; teamsIn/=2; r++;
+  }
+  const all = rounds.flat();
+  // resolver byes automáticos en ronda 1
+  all.filter(m=>m.ronda===1).forEach(m=>{
+    if(m.a==='BYE' || m.b==='BYE'){
+      const w = m.a==='BYE' ? m.b : m.a;
+      m.estado='finalizado'; m.ganador=w; m.etiqueta+=' (libre)';
+      avanzar(m, all);
+    }
+  });
+  return all;
+}
+function avanzar(m, lista){
+  if(!m.next) return;
+  const nx = (lista||S.partidos).find(x=>x.id===m.next);
+  if(nx) nx[m.nextSlot] = m.ganador;
+}
+
+function generarFixture(){
+  if(S.equipos.length < 2){ toast('Necesitas al menos 2 equipos'); return; }
+  if(S.generado && !confirm('Se borrarán los partidos y resultados actuales. ¿Regenerar fixture?')) return;
+  S.partidos = S.config.formato==='rr' ? genRoundRobin() : genBracket();
+  S.generado = true; S.actual = null; undoStack=[];
+  save(); tab='fixture'; render();
+  toast('Fixture generado ✓');
+}
+
+/* ================= LÓGICA MARCADOR ================= */
+const maxSets = () => S.config.bestOf;
+const setsToWin = () => Math.ceil(S.config.bestOf/2);
+const current = () => S.partidos.find(m=>m.id===S.actual);
+
+function targetPts(m){
+  const played = m.setsA + m.setsB;
+  return (played === maxSets()-1) ? S.config.ptsFinal : S.config.ptsSet;
+}
+function snapshot(m){
+  undoStack.push(JSON.stringify({id:m.id, setsA:m.setsA, setsB:m.setsB, sets:m.sets,
+    curA:m.curA, curB:m.curB, saque:m.saque, estado:m.estado, ganador:m.ganador,
+    toA:m.toA, toB:m.toB}));
+  if(undoStack.length>300) undoStack.shift();
+}
+function undo(){
+  if(!undoStack.length){ toast('Nada que deshacer'); return; }
+  const snap = JSON.parse(undoStack.pop());
+  const m = S.partidos.find(x=>x.id===snap.id); if(!m) return;
+  const wasDone = m.estado==='finalizado';
+  Object.assign(m, snap);
+  m.sets = JSON.parse(JSON.stringify(snap.sets));
+  if(wasDone && m.estado!=='finalizado' && m.next){
+    const nx = S.partidos.find(x=>x.id===m.next);
+    if(nx && nx.estado==='pendiente') nx[m.nextSlot] = null;
+  }
+  save(); render();
+}
+function punto(side){
+  const m = current(); if(!m || m.estado==='finalizado') return;
+  snapshot(m);
+  m.estado='en juego';
+  if(side==='a') m.curA++; else m.curB++;
+  m.saque = side;
+  const tgt = targetPts(m);
+  const [x,y] = side==='a' ? [m.curA,m.curB] : [m.curB,m.curA];
+  if(x>=tgt && x-y>=2) cerrarSet(m, side);
+  save(); render();
+  if(navigator.vibrate) navigator.vibrate(8);
+}
+function cerrarSet(m, winner){
+  m.sets.push({a:m.curA, b:m.curB});
+  if(winner==='a') m.setsA++; else m.setsB++;
+  m.curA=0; m.curB=0; m.toA=0; m.toB=0;
+  if(m.setsA===setsToWin() || m.setsB===setsToWin()){
+    m.estado='finalizado';
+    m.ganador = m.setsA>m.setsB ? m.a : m.b;
+    avanzar(m);
+    toast('🏆 Gana ' + tname(m.ganador));
+  } else {
+    toast('Set para ' + tname(winner==='a'?m.a:m.b));
+  }
+}
+function timeout(side){
+  const m=current(); if(!m||m.estado==='finalizado')return;
+  if(m['to'+side.toUpperCase()]>=2){ toast('Sin tiempos disponibles'); return; }
+  snapshot(m); m['to'+side.toUpperCase()]++; save(); render();
+  toast('Tiempo fuera · '+tname(side==='a'?m.a:m.b));
+}
+function abrirMarcador(id){ S.actual=id; undoStack=[]; save(); tab='board'; render(); }
+
+function matchPointInfo(m){
+  const tgt = targetPts(m);
+  const mpA = m.curA>=tgt-1 && m.curA-m.curB>=1;
+  const mpB = m.curB>=tgt-1 && m.curB-m.curA>=1;
+  if(!mpA && !mpB) return null;
+  const side = mpA?'a':'b';
+  const setsNow = side==='a'?m.setsA:m.setsB;
+  return (setsNow===setsToWin()-1 ? 'Punto de partido' : 'Punto de set') + ' · ' + tname(side==='a'?m.a:m.b);
+}
+
+/* ================= TABLA POSICIONES ================= */
+function standings(){
+  const st = {};
+  S.equipos.forEach(t=> st[t.id]={id:t.id,pj:0,pg:0,pp:0,pts:0,sw:0,sl:0,pw:0,pl:0});
+  S.partidos.filter(m=>m.estado==='finalizado' && !m.playoff && st[m.a] && st[m.b]).forEach(m=>{
+    const A=st[m.a], B=st[m.b];
+    A.pj++; B.pj++;
+    A.sw+=m.setsA; A.sl+=m.setsB; B.sw+=m.setsB; B.sl+=m.setsA;
+    m.sets.forEach(s=>{ A.pw+=s.a; A.pl+=s.b; B.pw+=s.b; B.pl+=s.a; });
+    const ganoA = m.ganador===m.a;
+    const cerrado = Math.abs(m.setsA-m.setsB)>1; // 2-0 / 3-0 / 3-1
+    if(ganoA){ A.pg++; B.pp++; A.pts+=cerrado?3:2; B.pts+=cerrado?0:1; }
+    else     { B.pg++; A.pp++; B.pts+=cerrado?3:2; A.pts+=cerrado?0:1; }
+  });
+  const ratio=(w,l)=> l===0 ? (w===0?0:Infinity) : w/l;
+  return Object.values(st).sort((a,b)=>
+    b.pts-a.pts || ratio(b.sw,b.sl)-ratio(a.sw,a.sl) || ratio(b.pw,b.pl)-ratio(a.pw,a.pl) || a.pj-b.pj);
+}
+
+/* ================= RENDER ================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg){
+  const t=$('#toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+function render(){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
+  const v = {board:vBoard, fixture:vFixture, table:vTable, setup:vSetup}[tab];
+  $('#main').innerHTML = v();
+  bind();
+}
+
+/* ---------- vista: marcador ---------- */
+function vBoard(){
+  const m = current();
+  if(!m) return `<div class="empty"><div class="big">🏐</div>
+    ${VIEWER ? 'Aún no hay un partido en juego.<br>Cuando el árbitro abra el marcador, aparecerá aquí solo.'
+             : 'No hay un partido en el marcador.<br>Elige uno desde el <b>Fixture</b>.'}</div>`;
+  const tgt = targetPts(m), mp = m.estado!=='finalizado' ? matchPointInfo(m) : null;
+  const hist = m.sets.map((s,i)=>`<span>S${i+1}&nbsp; ${s.a}–${s.b}</span>`).join('');
+  const done = m.estado==='finalizado';
+  return `
+  <div class="board">
+    <div class="board-head">
+      <h1>${esc(m.etiqueta)}</h1>
+      <span class="pill ${done?'done':(m.estado==='en juego'?'live':'')}">${done?'Finalizado':(m.estado==='en juego'?'En juego':'Set a '+tgt)}</span>
+    </div>
+    ${sched(m)?`<div class="sched">🕐 ${esc(sched(m))}</div>`:''}
+    <div class="setdots">
+      ${'●'.repeat(0)}${Array.from({length:setsToWin()},(_,i)=>`<span class="dot ${i<m.setsA?'a':''}"></span>`).join('')}
+      <span style="width:14px"></span>
+      ${Array.from({length:setsToWin()},(_,i)=>`<span class="dot ${i<m.setsB?'b':''}"></span>`).join('')}
+    </div>
+    ${mp?`<div class="matchpoint">${esc(mp)}</div>`:''}
+    <div class="courts">
+      <div class="half A ${m.saque==='a'&&!done?'serving':''}" data-pt="a">
+        <span class="serve">🏐</span>
+        <div class="tname">${esc(tname(m.a))}</div>
+        <div class="num">${m.curA}</div>
+        <div class="setsw">Sets <b>${m.setsA}</b> · T.O. ${m.toA}/2</div>
+      </div>
+      <div class="half B ${m.saque==='b'&&!done?'serving':''}" data-pt="b">
+        <span class="serve">🏐</span>
+        <div class="tname">${esc(tname(m.b))}</div>
+        <div class="num">${m.curB}</div>
+        <div class="setsw">Sets <b>${m.setsB}</b> · T.O. ${m.toB}/2</div>
+      </div>
+    </div>
+    ${done
+      ? `<div class="matchpoint" style="animation:none">🏆 ${esc(tname(m.ganador))} gana ${m.setsA}–${m.setsB}</div>`
+      : VIEWER ? `<div class="tapHint" style="color:var(--amber)">● EN VIVO — el marcador se actualiza solo</div>`
+      : `<div class="tapHint">Toca el lado de un equipo para sumar un punto</div>`}
+    ${hist?`<div class="sethist">${hist}</div>`:''}
+    ${VIEWER ? '' : `<div class="board-actions">
+      <button class="btn" id="bUndo">↩︎ Deshacer</button>
+      <button class="btn" id="bToA">T.O. local</button>
+      <button class="btn" id="bToB">T.O. visita</button>
+    </div>`}
+    <button class="btn ghost block" id="bBack">Ver fixture</button>
+  </div>`;
+}
+
+/* ---------- vista: fixture ---------- */
+function vFixture(){
+  if(!S.generado) return `<h1>Fixture</h1><div class="empty"><div class="big">📅</div>
+    Aún no hay fixture.<br>Configura equipos y formato en <b>Torneo</b> y genera el calendario.</div>`;
+  const grupos = {};
+  S.partidos.forEach(m=>{ (grupos[m.etiqueta] ||= []).push(m); });
+  let html = `<h1>${esc(S.config.nombre)}</h1>
+    <div class="sub">${S.config.formato==='rr'?'Todos contra todos':'Eliminación directa'} · al mejor de ${S.config.bestOf} sets</div>`;
+  for(const [lbl, ms] of Object.entries(grupos)){
+    html += `<div class="roundlbl">${esc(lbl)}</div>`;
+    html += ms.map(m=>{
+      const done = m.estado==='finalizado', live = m.estado==='en juego';
+      const listo = m.a && m.b && m.a!=='BYE' && m.b!=='BYE';
+      const det = m.sets.length ? m.sets.map(s=>s.a+'–'+s.b).join(' · ') : '';
+      const opts = side => `<select data-assign="${m.id}:${side}" style="font-size:13px;padding:6px 8px;width:auto;flex:1">
+          <option value="">${esc(m[side+'Label']||'Elegir equipo')}…</option>
+          ${S.equipos.map(t=>`<option value="${t.id}">${esc(t.nombre)}</option>`).join('')}</select>`;
+      return `<div class="card match" data-open="${m.id}" style="cursor:${listo?'pointer':'default'}">
+        ${sched(m)?`<div class="sched">🕐 ${esc(sched(m))}</div>`:''}
+        <div class="vs">
+          <span class="nm ${done&&m.ganador===m.a?'winner':''}">${esc(mname(m,'a'))}</span>
+          <span class="score">${done||live ? m.setsA+'–'+m.setsB : 'vs'}</span>
+          <span class="nm right ${done&&m.ganador===m.b?'winner':''}">${esc(mname(m,'b'))}</span>
+        </div>
+        ${det?`<div class="detail">${det}</div>`:''}
+        ${!VIEWER && !done && (!m.a || !m.b) ? `<div class="row" style="margin-top:8px">${!m.a?opts('a'):''}${!m.b?opts('b'):''}</div>`:''}
+        <div class="row" style="justify-content:center;margin-top:8px;gap:6px">
+          ${done?`<span class="pill done">Final</span>`
+            : live?`<span class="pill live">${VIEWER?'● En juego':'En juego · toca para continuar'}</span>`
+            : listo?`<span class="pill">${VIEWER?'Programado':'Toca para arbitrar'}</span>`
+            : `<span class="pill">${VIEWER?'Clasificados por definir':'Asigna los clasificados'}</span>`}
+          ${!done && !VIEWER?`<button class="pill btnp" data-edit="${m.id}">✎ Programar</button>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+  return html;
+}
+
+/* ---------- vista: tabla ---------- */
+function vTable(){
+  if(S.config.formato!=='rr'){
+    // llaves: mostrar campeón si existe
+    const fin = S.partidos.find(m=>m.etiqueta==='Final' || (m.etiqueta||'').startsWith('Final'));
+    let champ = fin && fin.estado==='finalizado' ? tname(fin.ganador) : null;
+    return `<h1>Llaves</h1>
+      ${champ?`<div class="card" style="text-align:center;border-color:var(--amber)">
+        <div style="font-size:34px">🏆</div>
+        <div style="font-family:var(--disp);font-size:24px;font-weight:800;color:var(--amber)">${esc(champ)}</div>
+        <div class="sub">Campeón del torneo</div></div>`
+      :`<div class="empty"><div class="big">🏆</div>El campeón aparecerá aquí al terminar la final.<br>Revisa el avance de llaves en <b>Fixture</b>.</div>`}`;
+  }
+  if(!S.generado || !S.equipos.length)
+    return `<h1>Tabla</h1><div class="empty"><div class="big">🏆</div>La tabla aparecerá cuando el fixture esté creado.</div>`;
+  const rows = standings().map((r,i)=>`
+    <tr class="${i===0?'q':''}">
+      <td class="pos">${i+1}</td><td class="tn">${esc(tname(r.id))}</td>
+      <td>${r.pj}</td><td>${r.pg}</td><td>${r.pp}</td>
+      <td>${r.sw}–${r.sl}</td><td class="pts">${r.pts}</td>
+    </tr>`).join('');
+  return `<h1>Tabla de posiciones</h1>
+    <div class="sub">3 pts por 2–0/3–0/3–1 · triunfo 3–2 = 2 pts y 1 pt al perdedor · desempate por ratio de sets y puntos</div>
+    <div class="card" style="padding:6px 10px;margin-top:12px">
+    <table><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PP</th><th>Sets</th><th>Pts</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+/* ---------- vista: setup ---------- */
+function vSetup(){
+  const c = S.config;
+  const teams = S.equipos.map(t=>`
+    <div class="teamrow">
+      <span class="chip" style="background:${t.color}"></span>
+      <span class="grow">${esc(t.nombre)}</span>
+      <button class="del" data-del="${t.id}">✕</button>
+    </div>`).join('');
+  return `<h1>Torneo</h1>
+  <div class="card">
+    <label class="fld">Nombre del campeonato</label>
+    <input type="text" id="cfgNombre" value="${esc(c.nombre)}" maxlength="40">
+    <label class="fld">Formato</label>
+    <div class="seg" id="segFmt">
+      <button data-v="rr" class="${c.formato==='rr'?'on':''}">Todos contra todos</button>
+      <button data-v="elim" class="${c.formato==='elim'?'on':''}">Eliminación</button>
+    </div>
+    <label class="fld">Partidos al mejor de</label>
+    <div class="seg" id="segBo">
+      <button data-v="3" class="${c.bestOf===3?'on':''}">3 sets</button>
+      <button data-v="5" class="${c.bestOf===5?'on':''}">5 sets</button>
+    </div>
+    <label class="fld">Puntos por set / set decisivo</label>
+    <div class="row">
+      <select id="cfgPts">${[25,21,15].map(p=>`<option ${c.ptsSet===p?'selected':''}>${p}</option>`).join('')}</select>
+      <select id="cfgPtsF">${[15,25,21].map(p=>`<option ${c.ptsFinal===p?'selected':''}>${p}</option>`).join('')}</select>
+    </div>
+  </div>
+
+  <h2>Equipos (${S.equipos.length})</h2>
+  <div class="card">
+    <div class="row">
+      <input type="text" id="newTeam" placeholder="Nombre del equipo" maxlength="24">
+      <button class="btn sm primary" id="addTeam">Añadir</button>
+    </div>
+    ${teams || '<div class="empty" style="padding:18px">Aún no hay equipos.</div>'}
+  </div>
+
+  <button class="btn primary block" id="genFx">${S.generado?'⟳ Regenerar fixture':'Generar fixture'}</button>
+
+  <h2>Transmisión en vivo</h2>
+  <div class="card" ${S.transmitir?'style="border-color:var(--amber)"':''}>
+    <div class="sub" style="margin-bottom:10px">${S.transmitir
+      ? '📡 Transmitiendo: cada punto que marques se publica al instante. Comparte el link de espectador con los papás y fans.'
+      : 'Al activarla, el torneo se publica en internet y cualquiera con el link de espectador ve el marcador en vivo, el fixture y la tabla (solo lectura).'}</div>
+    <button class="btn ${S.transmitir?'':'primary'} block" id="bTx" style="margin-top:0">${S.transmitir?'Detener transmisión':'📡 Iniciar transmisión'}</button>
+    ${S.transmitir ? (viewerLink()
+      ? `<button class="btn block" id="bCopyLink">🔗 Copiar link de espectador</button>
+         <div class="sub" style="margin-top:8px;word-break:break-all">${esc(viewerLink())}</div>`
+      : `<div class="sub" style="margin-top:10px">⚠️ Estás abriendo el archivo localmente. El link para espectadores se genera cuando la app esté publicada (GitHub Pages): será tu URL + <b>?vivo</b></div>`) : ''}
+  </div>
+
+  <h2>Guardar / respaldar</h2>
+  <div class="card">
+    <div class="sub" style="margin-bottom:10px">El torneo se guarda automáticamente en este dispositivo. Para respaldarlo o moverlo, exporta el archivo: en iPhone se abre la hoja de compartir y eliges dónde guardarlo (Archivos, iCloud, etc.).</div>
+    <div class="row">
+      <button class="btn grow" id="bExport">⬆︎ Exportar</button>
+      <button class="btn grow" id="bImport">⬇︎ Importar</button>
+    </div>
+    <button class="btn danger block" id="bReset">Borrar todo</button>
+  </div>`;
+}
+
+/* ---------- eventos ---------- */
+function bind(){
+  if(!VIEWER) document.querySelectorAll('[data-pt]').forEach(el=>
+    el.addEventListener('click', ()=>punto(el.dataset.pt)));
+  const on=(id,fn)=>{ const el=$(id); if(el) el.addEventListener('click',fn); };
+  on('#bUndo', undo);
+  on('#bToA', ()=>timeout('a'));
+  on('#bToB', ()=>timeout('b'));
+  on('#bBack', ()=>{ tab='fixture'; render(); });
+  document.querySelectorAll('[data-open]').forEach(el=>
+    el.addEventListener('click', ()=>{
+      if(VIEWER) return;
+      const m = S.partidos.find(x=>x.id===el.dataset.open);
+      if(m && m.a && m.b && m.a!=='BYE' && m.b!=='BYE') abrirMarcador(m.id);
+    }));
+  document.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    const m=S.partidos.find(x=>x.id===b.dataset.edit); if(!m)return;
+    const d=prompt('Día (ej: Viernes)', m.dia||''); if(d===null)return;
+    const h=prompt('Hora (ej: 15:00)', m.hora||''); if(h===null)return;
+    const c=prompt('Cancha (ej: Cancha 1)', m.cancha||''); if(c===null)return;
+    m.dia=d.trim(); m.hora=h.trim(); m.cancha=c.trim(); save(); render();
+  }));
+  document.querySelectorAll('select[data-assign]').forEach(sel=>{
+    sel.addEventListener('click',e=>e.stopPropagation());
+    sel.addEventListener('change',e=>{
+      e.stopPropagation();
+      const [id,side]=sel.dataset.assign.split(':');
+      const m=S.partidos.find(x=>x.id===id); if(!m)return;
+      m[side]=sel.value||null; save(); render();
+    });
+  });
+  // setup
+  const nm=$('#cfgNombre'); if(nm) nm.addEventListener('change',e=>{S.config.nombre=e.target.value.trim()||'Mi Campeonato';save();});
+  const seg=(sel,key,cast)=>{ const s=$(sel); if(!s)return;
+    s.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+      S.config[key]=cast?parseInt(b.dataset.v):b.dataset.v; save(); render(); })); };
+  seg('#segFmt','formato',false); seg('#segBo','bestOf',true);
+  const ps=$('#cfgPts'); if(ps) ps.addEventListener('change',e=>{S.config.ptsSet=+e.target.value;save();});
+  const pf=$('#cfgPtsF'); if(pf) pf.addEventListener('change',e=>{S.config.ptsFinal=+e.target.value;save();});
+  const add=()=>{ const i=$('#newTeam'); const v=i.value.trim(); if(!v)return;
+    S.equipos.push({id:uid(),nombre:v,color:COLORS[S.equipos.length%COLORS.length]});
+    save(); render(); const ni=$('#newTeam'); if(ni){ni.focus();} };
+  on('#addTeam', add);
+  const nt=$('#newTeam'); if(nt) nt.addEventListener('keydown',e=>{if(e.key==='Enter')add();});
+  document.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
+    if(S.generado && !confirm('Quitar este equipo borrará el fixture. ¿Continuar?')) return;
+    S.equipos = S.equipos.filter(t=>t.id!==b.dataset.del);
+    if(S.generado){ S.partidos=[]; S.generado=false; S.actual=null; }
+    save(); render(); }));
+  on('#genFx', generarFixture);
+  on('#bTx', toggleTransmitir);
+  on('#bCopyLink', ()=>{
+    const l = viewerLink(); if(!l) return;
+    if(navigator.clipboard) navigator.clipboard.writeText(l).then(()=>toast('Link copiado ✓'));
+    else prompt('Copia el link:', l);
+  });
+  on('#bExport', exportJSON);
+  on('#bImport', ()=>$('#importFile').click());
+  on('#bReset', ()=>{ if(confirm('¿Borrar el torneo completo? Esta acción no se puede deshacer.')){
+    S=DEFAULT(); undoStack=[]; save(); tab='setup'; render(); toast('Torneo borrado'); }});
+}
+
+document.querySelectorAll('nav button').forEach(b=>
+  b.addEventListener('click',()=>{ tab=b.dataset.tab; render(); }));
+$('#importFile').addEventListener('change', importJSON);
+
+if(VIEWER){
+  document.querySelector('nav button[data-tab="setup"]').style.display='none';
+  tab='fixture';
+  render();
+  if(db){
+    db.ref('torneos/main').on('value', snap=>{
+      const v = snap.val();
+      if(!v) return;
+      S = v;
+      S.equipos ||= []; S.partidos ||= [];
+      S.partidos.forEach(m=>{ m.sets ||= []; });
+      if(!viewerBooted){ viewerBooted=true; tab = S.actual ? 'board' : 'fixture'; }
+      render();
+    }, ()=> toast('No se pudo conectar a la transmisión'));
+  } else {
+    toast('No hay conexión con Firebase');
+  }
+} else {
+  load(); render();
+}
+</script>
+</body>
+</html>
