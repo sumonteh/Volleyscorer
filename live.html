@@ -6,6 +6,8 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0b0d12">
   <title>VolleyBox - Transmisión en vivo</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <style>
     :root {
       --bg: #0b0d12;
@@ -15,6 +17,7 @@
       --muted: #aeb6c7;
       --line: rgba(255, 255, 255, 0.12);
       --live: #ff334f;
+      --accent: #ffbc3a;
       --shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
     }
 
@@ -45,7 +48,7 @@
       min-height: 100vh;
       margin: 0 auto;
       padding:
-        max(28px, env(safe-area-inset-top))
+        max(22px, env(safe-area-inset-top))
         max(16px, env(safe-area-inset-right))
         max(28px, env(safe-area-inset-bottom))
         max(16px, env(safe-area-inset-left));
@@ -92,6 +95,83 @@
       background: var(--live);
       box-shadow: 0 0 0 6px rgba(255, 51, 79, 0.16);
       flex: 0 0 auto;
+    }
+
+    .scoreboard {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(20, 24, 33, 0.72);
+    }
+
+    .scoreboard.waiting {
+      display: block;
+      color: var(--muted);
+      font-size: 0.95rem;
+      text-align: center;
+    }
+
+    .team {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+      text-align: center;
+    }
+
+    .team-name {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: clamp(0.72rem, 3vw, 0.95rem);
+      font-weight: 800;
+      letter-spacing: 0;
+      text-overflow: ellipsis;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .team-score {
+      color: var(--accent);
+      font-size: clamp(2.15rem, 15vw, 5.4rem);
+      font-weight: 900;
+      line-height: 0.95;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .team-sets {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .match-state {
+      display: grid;
+      gap: 5px;
+      justify-items: center;
+      min-width: 64px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .match-state strong {
+      color: var(--text);
+      font-size: clamp(0.9rem, 3.4vw, 1.2rem);
+      line-height: 1;
+    }
+
+    .match-state span {
+      color: #ffdfe4;
+      font-size: 0.72rem;
     }
 
     .player-card {
@@ -143,6 +223,15 @@
         font-size: 0.72rem;
         padding: 7px 10px;
       }
+
+      .scoreboard {
+        gap: 6px;
+        padding: 10px 8px;
+      }
+
+      .match-state {
+        min-width: 54px;
+      }
     }
   </style>
 </head>
@@ -155,6 +244,10 @@
         🔴 TRANSMISIÓN EN VIVO
       </div>
     </header>
+
+    <section class="scoreboard waiting" id="scoreboard" aria-live="polite">
+      Esperando marcador...
+    </section>
 
     <section class="player-card" aria-label="Reproductor de la transmisión en vivo">
       <div class="player">
@@ -171,5 +264,104 @@
 
     <p class="note">Transmisión para familiares y apoderados.</p>
   </main>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDF2YOoG6WW5y_K2zzFWCE7ES1gSIrPcFY",
+      authDomain: "volleyscore-a9791.firebaseapp.com",
+      databaseURL: "https://volleyscore-a9791-default-rtdb.firebaseio.com",
+      projectId: "volleyscore-a9791",
+      storageBucket: "volleyscore-a9791.firebasestorage.app",
+      messagingSenderId: "153085028292",
+      appId: "1:153085028292:web:0a54f1a8ac2fe5f2246691"
+    };
+
+    const params = new URLSearchParams(location.search);
+    const scoreChannel = params.get("vivo") || params.get("t") || "main";
+    const scoreboard = document.getElementById("scoreboard");
+
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    function asList(value) {
+      if (Array.isArray(value)) return value.filter(Boolean);
+      if (value && typeof value === "object") return Object.values(value).filter(Boolean);
+      return [];
+    }
+
+    function renderWaiting() {
+      scoreboard.className = "scoreboard waiting";
+      scoreboard.textContent = "Esperando marcador...";
+    }
+
+    function teamName(teams, id, fallback) {
+      if (!id) return fallback || "Equipo";
+      const team = teams.find((item) => item && item.id === id);
+      return team && team.nombre ? team.nombre : fallback || "Equipo";
+    }
+
+    function renderMatch(match, teams) {
+      const setNumber = (asList(match.sets).length || 0) + 1;
+      const nameA = teamName(teams, match.a, match.aLabel || "Equipo A");
+      const nameB = teamName(teams, match.b, match.bLabel || "Equipo B");
+
+      scoreboard.className = "scoreboard";
+      scoreboard.innerHTML = `
+        <div class="team">
+          <div class="team-name">${esc(nameA)}</div>
+          <div class="team-score">${Number(match.curA || 0)}</div>
+          <div class="team-sets">Sets ${Number(match.setsA || 0)}</div>
+        </div>
+        <div class="match-state">
+          <strong>SET ${setNumber}</strong>
+          <span>🔴 EN VIVO</span>
+        </div>
+        <div class="team">
+          <div class="team-name">${esc(nameB)}</div>
+          <div class="team-score">${Number(match.curB || 0)}</div>
+          <div class="team-sets">Sets ${Number(match.setsB || 0)}</div>
+        </div>
+      `;
+    }
+
+    function handleScoreSnapshot(snapshot) {
+      const data = snapshot.val();
+      if (!data) {
+        renderWaiting();
+        return;
+      }
+
+      const teams = asList(data.equipos);
+      const matches = asList(data.partidos).map((match) => ({
+        sets: [],
+        ...match
+      }));
+      const liveMatches = matches.filter((match) => match.estado === "en juego");
+
+      if (!liveMatches.length) {
+        renderWaiting();
+        return;
+      }
+
+      renderMatch(liveMatches[0], teams);
+    }
+
+    try {
+      firebase.initializeApp(firebaseConfig);
+      firebase.database().ref(`torneos/${scoreChannel}`).on("value", handleScoreSnapshot, () => {
+        renderWaiting();
+      });
+    } catch (error) {
+      console.warn("No se pudo conectar el marcador en vivo.", error);
+      renderWaiting();
+    }
+  </script>
 </body>
 </html>
