@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0d12">
+  <title>VolleyBox - Transmisión en vivo</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --panel: #141821;
+      --panel-soft: #1b2130;
+      --text: #f6f7fb;
+      --muted: #aeb6c7;
+      --line: rgba(255, 255, 255, 0.12);
+      --live: #ff334f;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-width: 0;
+      background: var(--bg);
+    }
+
+    body {
+      min-width: 0;
+      min-height: 100vh;
+      margin: 0;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at top left, rgba(255, 188, 58, 0.16), transparent 32rem),
+        linear-gradient(180deg, #101520 0%, var(--bg) 46%, #07080c 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    .page {
+      width: min(100%, 1100px);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding:
+        max(28px, env(safe-area-inset-top))
+        max(16px, env(safe-area-inset-right))
+        max(28px, env(safe-area-inset-bottom))
+        max(16px, env(safe-area-inset-left));
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+    }
+
+    .header {
+      display: grid;
+      gap: 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.15rem, 9vw, 4.8rem);
+      line-height: 1;
+      letter-spacing: 0;
+      font-weight: 800;
+    }
+
+    .live-badge {
+      width: fit-content;
+      max-width: 100%;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 51, 79, 0.45);
+      border-radius: 999px;
+      background: rgba(255, 51, 79, 0.12);
+      color: #ffdfe4;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .live-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--live);
+      box-shadow: 0 0 0 6px rgba(255, 51, 79, 0.16);
+      flex: 0 0 auto;
+    }
+
+    .player-card {
+      width: 100%;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .player {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background:
+        linear-gradient(135deg, rgba(255, 188, 58, 0.08), transparent 38%),
+        var(--panel-soft);
+    }
+
+    .player iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      background: #000;
+    }
+
+    .note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      text-align: center;
+    }
+
+    @media (max-width: 420px) {
+      .page {
+        justify-content: flex-start;
+        padding-top: max(24px, env(safe-area-inset-top));
+      }
+
+      .player-card {
+        border-radius: 12px;
+      }
+
+      .live-badge {
+        font-size: 0.72rem;
+        padding: 7px 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page" aria-labelledby="page-title">
+    <header class="header">
+      <h1 id="page-title">🏐 VolleyBox</h1>
+      <div class="live-badge" aria-label="Transmisión en vivo">
+        <span class="live-dot" aria-hidden="true"></span>
+        🔴 TRANSMISIÓN EN VIVO
+      </div>
+    </header>
+
+    <section class="player-card" aria-label="Reproductor de la transmisión en vivo">
+      <div class="player">
+        <iframe
+          src="https://customer-fyr6gx6rae9ki9kh.cloudflarestream.com/f1bbdb0cdde1d56a4bd23202176abfee/iframe"
+          title="VolleyBox - Transmisión en vivo"
+          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowfullscreen
+          webkitallowfullscreen
+          mozallowfullscreen>
+        </iframe>
+      </div>
+    </section>
+
+    <p class="note">Transmisión para familiares y apoderados.</p>
+  </main>
+</body>
+</html>
