@@ -398,6 +398,7 @@
 
     const params = new URLSearchParams(location.search);
     const scoreChannel = params.get("vivo") || params.get("t") || "varones";
+    const SCORE_DELAY_MS = 10000;
     const scoreboard = document.getElementById("scoreboard");
 
     function esc(value) {
@@ -451,8 +452,7 @@
       `;
     }
 
-    function handleScoreSnapshot(snapshot) {
-      const data = snapshot.val();
+    function renderScoreData(data) {
       if (!data) {
         renderWaiting();
         return;
@@ -471,6 +471,11 @@
       }
 
       renderMatch(liveMatches[0], teams);
+    }
+
+    function handleScoreSnapshot(snapshot) {
+      const data = snapshot.val();
+      window.setTimeout(() => renderScoreData(data), SCORE_DELAY_MS);
     }
 
     try {
